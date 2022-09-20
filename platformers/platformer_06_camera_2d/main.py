@@ -2,14 +2,15 @@ import pygame as pg
 from pygame.math import Vector2
 import sys
 from pygame.locals import *
-
+import random
 GAME_ON = True
-player_speed = 5
+player_speed = 7
 move_left = False
 move_right = False
 jump = False
 jump_force = 5
 jump_timer = 0.00
+sprint = 0.00
 
 gravity = .2
 air_resitance = .2
@@ -18,7 +19,7 @@ gravity_applied = 0.00
 
 
 def events() -> None:
-    global move_left, move_right, jump, GAME_ON, jump_timer, gravity_applied
+    global move_left, move_right, jump, GAME_ON, jump_timer, gravity_applied, sprint
     """Handles User' events"""
     for event in pg.event.get():
 
@@ -34,10 +35,12 @@ def events() -> None:
             elif event.key == pg.K_UP or event.key == pg.K_SPACE:
                 if not jump and jump_timer == 0:
                     jump = True
-                    jump_timer = 75
+                    jump_timer = 0
                     gravity_applied = -jump_force
                 else:
                     jump = False
+            elif event.key == pg.K_LSHIFT:
+                sprint = 12
 
         if event.type == pg.KEYUP:
             if event.key == pg.K_LEFT:
@@ -46,6 +49,38 @@ def events() -> None:
                 move_right = False
             elif event.key == pg.K_UP or event.key == pg.K_SPACE:
                 jump = False
+            elif event.key == pg.K_LSHIFT:
+                sprint = 0
+
+
+def make_particle_trail(screen: pg.Surface, entity_pos: Vector2, enitty_size: Vector2) -> None:
+    """Generates a trail of particle behind a entity Good for turbo effects
+
+    :param screen: pg.Surface Screen where the particle is drawn
+    :param entity_pos:  Vector2  x, y position coordinates
+    :param enitty_size: Vector2  x, y entity size
+    :return: None
+    """
+    particle_color: pg.Color = pg.Color("white")
+    total_particle: int = 25
+    particle_min_size: int = 1
+    particle_max_size: int = 10
+    # by increasing the number, we draw particle more far away from the entity
+    # creating a trail behind it
+    for particle_x_pos in range(total_particle):
+        particle_y_side = (entity_pos.y + (enitty_size.y - random.randint(1, 10)))
+        if move_left:
+            particle_x_side = (entity_pos.x + (random.randint(1, 10) * particle_x_pos)) # depending on the player direction , draw particle on the opposite side
+        else:
+            particle_x_side = (entity_pos.x - (random.randint(1, 10) * particle_x_pos)) # depending on the player direction , draw particle on the opposite side
+        pg.draw.circle(
+            screen,
+            particle_color,
+            (particle_x_side, particle_y_side),
+            random.randint(particle_min_size, particle_max_size)
+        )
+
+
 
 def run():
     global gravity_applied, jump_timer
@@ -56,6 +91,12 @@ def run():
     CLOCK = pg.time.Clock()
 
     WIN_SIZE = (900, 600)
+
+    WIN_WIDTH = WIN_SIZE[0]
+    WIN_WIDTH_HALF = WIN_WIDTH / 2
+
+    WIN_HEIGHT = WIN_SIZE[1] / 2
+    WIN_HEIGHT_HALF = WIN_HEIGHT / 2
 
     window = pg.display.set_mode(WIN_SIZE, 0, 32)
     background = pg.Surface(WIN_SIZE)
@@ -75,6 +116,7 @@ def run():
 
 
     camera = Vector2(0, 0)
+    camera_smoother = 20
     count = 0
     while GAME_ON:
         background.fill((10, 0, 25)) # re-paint
@@ -84,10 +126,31 @@ def run():
             count = 0
             # camera.x += 5
 
+        # Set camera
+
+        x = WIN_WIDTH_HALF / 2
+        y = (WIN_HEIGHT_HALF / 2) + 200
+        if move_left:
+            x += 300
+        camera_offset_x = ( player_rect.x - camera.x - (x + player_size.x / 2) ) / camera_smoother
+        camera_offset_y = ( player_rect.y - camera.y - (y + player_size.y / 2) ) / camera_smoother
+
+        # if camera_offset_x < 0:
+        #     camera_offset_x = 0
+        # if camera_offset_y < 0:
+        #     camera_offset_y = 0
+        print(f'offset x {camera_offset_x} offset y {camera_offset_y}')
+
+        camera.x += camera_offset_x
+        camera.y += camera_offset_y
+        print(f'Camera = {camera}')
+
+
+
 
 
         # Render world
-        tales = [pg.Rect(x * 50, 400, 50, 50) for x in range(50)]
+        tales = [pg.Rect(x * 50, 400, 50, 50) for x in range(150)]
 
         tales += [pg.Rect(3 * 50, 350, 50, 50)]
         tales += [pg.Rect(5 * 50, 350, 50, 50)]
@@ -96,16 +159,16 @@ def run():
         tales += [pg.Rect(8 * 50, 300, 50, 50)]
 
         for i, tale in enumerate(tales):
-            tale.x -= camera.x
-            tale.y -= camera.y
+            # tale.x -= int(camera.x)
+            # tale.y -= int(camera.y)
 
 
             if i % 2 == 0:
-                # background.blit(grass, tale.topleft)
-                pg.draw.rect(background,  (25, 60, 50), tale)
+                background.blit(grass, (tale.x - int(camera.x), tale.y - int(camera.y)))
+                # pg.draw.rect(background,  (25, 60, 50), tale)
             else:
-                # background.blit(ground, tale.topleft)
-                pg.draw.rect(background,  (175, 80, 15), tale)
+                background.blit(ground,  (tale.x - int(camera.x), tale.y - int(camera.y)))
+                # pg.draw.rect(background,  (175, 80, 15), tale)
 
         # jump
         if jump_timer:
@@ -121,9 +184,9 @@ def run():
         player_movement = Vector2(0, gravity_applied / air_resitance)
 
         if move_left:
-            player_movement.x -= player_speed
+            player_movement.x -= (player_speed + sprint)
         elif move_right:
-            player_movement.x += player_speed
+            player_movement.x += (player_speed + sprint)
 
 
         # collisions
@@ -154,9 +217,11 @@ def run():
 
         # player_rect.move_ip(player_movement)
         # Render Player
-        player_rect.clamp_ip(background.get_rect()) # in order to don't make the player escape the window1
-        background.blit(player_img, (player_rect.x, player_rect.y))
-
+        # player_rect.clamp_ip(background.get_rect()) # in order to don't make the player escape the window1
+        player_new_pos = Vector2(player_rect.x - int(camera.x), player_rect.y - int(camera.y))
+        background.blit(player_img, player_new_pos)
+        if sprint:
+            make_particle_trail(background, player_new_pos, player_size)
 
         # Events
         events()
