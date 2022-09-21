@@ -1,28 +1,36 @@
 import pygame as pg
 from pygame.math import Vector2
+from player import Player
+from camera import Camera2D
+import pygame as pg
+from pygame.math import Vector2
 from typing import Optional
 import effects
+# a = pg.color.THECOLORS
 
-
-class Player:
-    DEFAULT_COLOR: pg.Color = pg.Color("red")
+class Manikin:
+    DEFAULT_COLOR: pg.Color = pg.Color("mediumpurple")
+    COLOR_ATTACK: pg.Color = pg.Color("red")
 
     speed: int = 7
     gravity: float = .2
     air_resitance: float = .2
     gravity_max: int = 3
+    camera_follow: bool = False
 
     def __init__(self):
-        self.size: Vector2 = Vector2(64 / 4, 64 / 2)
-        self.pos: Vector2 = Vector2(120, 100)
+        self.size: Vector2 = Vector2(64 / 2, 64)
+        self.pos: Vector2 = Vector2(300, 400)
         self.pos_next: Optional[Vector2] = None
         self.rect: pg.React = pg.Rect(self.pos, self.size)
 
         self.img: pg.Surface = pg.Surface(self.size)
         self.img.fill(self.DEFAULT_COLOR)
 
+        # TODO: does it use this stuff???
         self.move_left: bool = False
         self.move_right: bool = False
+        self.too_far: bool = False
         self.jump: bool = False
         self.jump_force: int = 5
         self.jump_timer: float = 0.00
@@ -30,11 +38,18 @@ class Player:
         self.gravity_applied: float = 0.00
         self.collisions: dict = {'top': False, 'right': False, 'bottom': False, 'left': False}
 
-    def render(self, tales: list, screen, camera):
-        # jump
-        self.jump_timer_decrease()
+        self.attack_timer: int = 0
+
+    def render(self, player_pos: Vector2, tales: list, screen, camera):
+
+        distance_from_player = player_pos - self.pos
+        self.too_far = False
+        if abs(distance_from_player.x) >= 600 or abs(distance_from_player.y) >= 600:
+            self.too_far = True
+
         # apply gravity to player
-        self.apply_gravity()
+        if not self.too_far:
+            self.apply_gravity()
         # prepare player movement
         player_movement = self.move_calculate()
         # calcualte collision
@@ -46,7 +61,11 @@ class Player:
         # Player abilities
         # .........
         # Sprint
-        self.sprint_make(screen)
+
+        if self.attack_timer:
+            self.attack_timer -= 1
+        else:
+            self.img.fill(self.DEFAULT_COLOR)
 
     def move(self, screen: pg.Surface, camera) -> None:
         """Moves entity"""
@@ -56,18 +75,16 @@ class Player:
 
     def move_calculate(self) -> Vector2:
         """Calculates the next Player movement"""
-        player_movement = Vector2(0, self.gravity_applied / self.air_resitance)
+        if not self.too_far:
+            player_movement = Vector2(0, self.gravity_applied / self.air_resitance)
+        else:
+            player_movement = Vector2(0, 0)
 
         if self.move_left:
             player_movement.x -= (self.speed + self.sprint)
         elif self.move_right:
             player_movement.x += (self.speed + self.sprint)
         return player_movement
-
-    def jump_timer_decrease(self) -> None:
-        """Decrease the jump time"""
-        if self.jump_timer:
-            self.jump_timer -= 1
 
     def apply_gravity(self) -> None:
         """Applies Gravity to Player"""
@@ -101,11 +118,3 @@ class Player:
                 self.collisions['top'] = True
                 self.gravity_applied = 0  # Cancel any jump or upper forces
                 self.rect.top = tile.bottom
-
-    def sprint_make(self, screen: pg.Surface) -> None:
-        """Make Entity sprint"""
-        if not self.sprint:
-            return
-
-        direction = "left" if self.move_left else "right"
-        effects.make_particle_trail(direction, screen, self.player_new_pos, self.size)

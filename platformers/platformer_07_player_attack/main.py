@@ -1,6 +1,7 @@
 import pygame as pg
 from pygame.math import Vector2
 from player import Player
+from manikin import Manikin
 from camera import Camera2D
 import csv
 
@@ -38,7 +39,7 @@ def run():
     WIN_WIDTH_HALF = WIN_WIDTH / 2
     WIN_HEIGHT = WIN_SIZE[1] / 2
     WIN_HEIGHT_HALF = WIN_HEIGHT / 2
-    window = pg.display.set_mode(WIN_SIZE, pg.FULLSCREEN, 32)
+    window = pg.display.set_mode(WIN_SIZE, 0, 32)
     background = pg.Surface(WIN_SIZE)
 
     # map
@@ -98,6 +99,9 @@ def run():
     # Plaer
     player = Player()
 
+    # enemy
+    enemy = Manikin()
+
     # CAMERA
     camera = Camera2D(player, WIN_WIDTH_HALF, WIN_HEIGHT_HALF)
     GAME_ON = True
@@ -110,12 +114,23 @@ def run():
                     event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE):  # x button and esc terminates the game!
                 GAME_ON = False
 
+            # ............. Mouse ............. #
+            if event.type == pg.MOUSEBUTTONDOWN:
+                if event.button == 1:
+                    player.attacking = True
+
+            if event.type == pg.MOUSEBUTTONUP:
+                if event.button == 1:
+                    player.attacking = False
+
+
+            # ............. Keyboard ............. #
             if event.type == pg.KEYDOWN:
-                if event.key == pg.K_LEFT:
+                if event.key in (pg.K_LEFT, pg.K_a):
                     player.move_left = True
-                elif event.key == pg.K_RIGHT:
+                elif event.key in (pg.K_RIGHT, pg.K_d):
                     player.move_right = True
-                elif event.key == pg.K_UP or event.key == pg.K_SPACE:
+                elif event.key in (pg.K_UP, pg.K_SPACE):
                     if not player.jump and player.jump_timer == 0:
                         player.jump = True
                         player.jump_timer = 0
@@ -125,15 +140,22 @@ def run():
                 elif event.key == pg.K_LSHIFT:
                     player.sprint = 12
 
+                elif event.key == pg.K_RETURN:
+                    player.attacking = True
+
             if event.type == pg.KEYUP:
-                if event.key == pg.K_LEFT:
+                if event.key in (pg.K_LEFT, pg.K_a):
                     player.move_left = False
-                elif event.key == pg.K_RIGHT:
+                elif event.key in (pg.K_RIGHT, pg.K_d):
                     player.move_right = False
-                elif event.key == pg.K_UP or event.key == pg.K_SPACE:
+                elif event.key in (pg.K_UP, pg.K_SPACE):
                     player.jump = False
                 elif event.key == pg.K_LSHIFT:
                     player.sprint = 0
+                elif event.key == pg.K_RETURN:
+                    player.attacking = False
+
+
 
     def generate_world() -> list:
         """Generates a World adding its talese in multidimensional array by its tall"""
@@ -195,7 +217,7 @@ def run():
         block_height_index = 0 if block_height_index < 0 else block_height_index
         # | 4) Get the max block index on the view chunk by adding the MAP_TALL|MAP_LENGTH + some margin
         block_length_index_max = round(block_position_index.x + MAP_LENGTH + view_margin)
-        block_height_index_max = round(block_position_index.y + MAP_TALL + view_margin )
+        block_height_index_max = round(block_position_index.y + MAP_TALL + view_margin ) + 2
 
         for height_index, row in enumerate(world[block_height_index:block_height_index_max]):  # | 5) Iterate through row line (by its tall)
             for width_index, block_data in enumerate(row[block_length_index:block_length_index_max]):  # | 6) Iterate through col line (by its lenght)
@@ -204,7 +226,8 @@ def run():
                 block_img: pg.Surface = block_data['img']
                 block_rect: pg.Rect = block_data['rect']  # | 7) Move The camera accordingly
                 block_pos_updated = Vector2(block_rect.x - camera.x(), block_rect.y - camera.y())
-                # add it to the screen
+                # add it to the screen45
+
                 background.blit(block_img, block_pos_updated)
                 if block_data['collision']:
 
@@ -213,6 +236,12 @@ def run():
                     player_position = player.pos
                     diff_x = abs(block_pos_updated.x - player_position.x)
                     diff_y = abs(block_pos_updated.y - player_position.y)
+                    if diff_x < TILE_MAX_COLLISION and diff_y < TILE_MAX_COLLISION:
+                        tales_with_collisions.append(block_rect)
+
+                    enemy_position = enemy.pos
+                    diff_x = abs(block_pos_updated.x - enemy_position.x)
+                    diff_y = abs(block_pos_updated.y - enemy_position.y)
                     if diff_x < TILE_MAX_COLLISION and diff_y < TILE_MAX_COLLISION:
                         tales_with_collisions.append(block_rect)
 
@@ -229,8 +258,11 @@ def run():
 
         # Render world
         tales_with_collisions = render_world(world)
+        # tales_with_collisions += [player.rect, enemy.rect]
 
-        player.render(tales_with_collisions, background, camera)
+        player.render(tales_with_collisions + [enemy.rect], background, camera, enemy)
+        enemy.render(tales_with_collisions, background, camera)
+
         # Events
         events()
 

@@ -1,20 +1,10 @@
 import pygame as pg
 from pygame.math import Vector2
 from player import Player
+from manikin import Manikin
 from camera import Camera2D
+import random_map_generator
 import csv
-
-
-def load_map():
-    MAP_NAME = "map.csv"
-
-    map_struct = []
-    with open(MAP_NAME, 'r') as map_csv:
-        csv_reader = csv.reader(map_csv, delimiter=',')
-        for row in csv_reader:
-            map_struct.append([int(cell) for cell in row])
-
-    return map_struct
 
 
 def run():
@@ -31,18 +21,16 @@ def run():
     MAP_LENGTH_TOTAL = MAP_LENGTH * 20  # The total map legnth
     MAP_TALL_TOTAL = MAP_TALL * 4  # The Total Map hegith
 
-    TILE_MAX_COLLISION = TILE_SIZE * 2 # distance where the collision from a entity should be check
+    TILE_MAX_COLLISION = TILE_SIZE * 2  # distance where the collision from a entity should be check
 
     WIN_SIZE = (TILE_WIDTH, TILE_HEIGHT)
     WIN_WIDTH = WIN_SIZE[0]
     WIN_WIDTH_HALF = WIN_WIDTH / 2
     WIN_HEIGHT = WIN_SIZE[1] / 2
     WIN_HEIGHT_HALF = WIN_HEIGHT / 2
-    window = pg.display.set_mode(WIN_SIZE, pg.FULLSCREEN, 32)
+    window = pg.display.set_mode(WIN_SIZE, 0, 32)
     background = pg.Surface(WIN_SIZE)
 
-    # map
-    map_level = load_map()
     # blocks
     blocks = {
         -1: {  # cloud
@@ -75,7 +63,7 @@ def run():
         4: {  # water
             'img': pg.Surface((TILE_SIZE, TILE_SIZE)),
             'color': pg.Color("blue"),
-            'collision': False # TODO: make water effect?
+            'collision': False  # TODO: make water effect?
         },
     }
 
@@ -96,10 +84,13 @@ def run():
         block['img'].fill(block_color)
 
     # Plaer
-    player = Player()
+    player = Player( MAP_LENGTH_TOTAL, MAP_TALL_TOTAL)
+
+    # enemy
+    enemy = Manikin()
 
     # CAMERA
-    camera = Camera2D(player, WIN_WIDTH_HALF, WIN_HEIGHT_HALF)
+    camera = Camera2D(player, WIN_WIDTH_HALF, WIN_HEIGHT_HALF, MAP_LENGTH_TOTAL, MAP_TALL_TOTAL)
     GAME_ON = True
 
     def events():
@@ -110,12 +101,22 @@ def run():
                     event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE):  # x button and esc terminates the game!
                 GAME_ON = False
 
+            # ............. Mouse ............. #
+            if event.type == pg.MOUSEBUTTONDOWN:
+                if event.button == 1:
+                    player.attacking = True
+
+            if event.type == pg.MOUSEBUTTONUP:
+                if event.button == 1:
+                    player.attacking = False
+
+            # ............. Keyboard ............. #
             if event.type == pg.KEYDOWN:
-                if event.key == pg.K_LEFT:
+                if event.key in (pg.K_LEFT, pg.K_a):
                     player.move_left = True
-                elif event.key == pg.K_RIGHT:
+                elif event.key in (pg.K_RIGHT, pg.K_d):
                     player.move_right = True
-                elif event.key == pg.K_UP or event.key == pg.K_SPACE:
+                elif event.key in (pg.K_UP, pg.K_SPACE):
                     if not player.jump and player.jump_timer == 0:
                         player.jump = True
                         player.jump_timer = 0
@@ -125,36 +126,49 @@ def run():
                 elif event.key == pg.K_LSHIFT:
                     player.sprint = 12
 
+                elif event.key == pg.K_RETURN:
+                    player.attacking = True
+
             if event.type == pg.KEYUP:
-                if event.key == pg.K_LEFT:
+                if event.key in (pg.K_LEFT, pg.K_a):
                     player.move_left = False
-                elif event.key == pg.K_RIGHT:
+                elif event.key in (pg.K_RIGHT, pg.K_d):
                     player.move_right = False
-                elif event.key == pg.K_UP or event.key == pg.K_SPACE:
+                elif event.key in (pg.K_UP, pg.K_SPACE):
                     player.jump = False
                 elif event.key == pg.K_LSHIFT:
                     player.sprint = 0
+                elif event.key == pg.K_RETURN:
+                    player.attacking = False
 
-    def generate_world() -> list:
+    def generate_world(height_offset: int = 0, widht_offset: int = 0) -> list:
         """Generates a World adding its talese in multidimensional array by its tall"""
-
+        # map
+        map_level = random_map_generator.gen(False, height_offset, widht_offset)
         tales = []
         for height_index, row in enumerate(map_level):
             tale_rows = []
             for width_index, col in enumerate(row):
-                block_type = blocks[col]
+
+                height_index_current = height_index + height_offset
+                width_index_current = width_index + widht_offset
+
+                try:
+                    block_type = blocks[col]
+                except KeyError as err:
+                    print(err)
                 # get the block
                 block = block_type['img']
-                rect = pg.Rect(width_index * TILE_SIZE, height_index * TILE_SIZE, TILE_SIZE, TILE_SIZE)
+                rect = pg.Rect(width_index_current * TILE_SIZE, height_index_current * TILE_SIZE, TILE_SIZE, TILE_SIZE)
                 # add it to the screen
                 background.blit(block, rect.topleft)
-                block_id = f"{height_index}-{width_index}"
+                block_id = f"{height_index_current}-{width_index_current}"
                 tale_struct = {
                     'terrain': col,
                     'terrain_label': TERRAIN_LABELS[col],
                     'block_id': block_id,
-                    'height_index': height_index,
-                    'width_index': width_index,
+                    'height_index': height_index_current,
+                    'width_index': width_index_current,
                     'img': block,
                     'rect': rect,
                     'collision': False
@@ -185,9 +199,10 @@ def run():
         # | 6) Iterate through col line (by its lenght)
         # | 7) Move The camera accordingly
 
-        view_margin: int = 12 #  arbitrary additional 'padding' to add in the camera view. so that the actual block rendered is bigger than the camera
-        player_pos = Vector2(player.rect.topleft) # | 1) Get Player position
-        block_position_index = Vector2((player_pos.x / TILE_SIZE) - view_margin, (player_pos.y / TILE_SIZE) - view_margin) # | 2) Calculate the block index
+        view_margin: int = 12  # arbitrary additional 'padding' to add in the camera view. so that the actual block rendered is bigger than the camera
+        player_pos = Vector2(player.rect.topleft)  # | 1) Get Player position
+        block_position_index = Vector2((player_pos.x / TILE_SIZE) - view_margin,
+                                       (player_pos.y / TILE_SIZE) - view_margin)  # | 2) Calculate the block index
 
         block_length_index = round(block_position_index.x)  # | 3) Get the current off x -y block index
         block_height_index = round(block_position_index.y)
@@ -195,16 +210,25 @@ def run():
         block_height_index = 0 if block_height_index < 0 else block_height_index
         # | 4) Get the max block index on the view chunk by adding the MAP_TALL|MAP_LENGTH + some margin
         block_length_index_max = round(block_position_index.x + MAP_LENGTH + view_margin)
-        block_height_index_max = round(block_position_index.y + MAP_TALL + view_margin )
+        block_height_index_max = round(block_position_index.y + MAP_TALL + view_margin) + 2
 
-        for height_index, row in enumerate(world[block_height_index:block_height_index_max]):  # | 5) Iterate through row line (by its tall)
-            for width_index, block_data in enumerate(row[block_length_index:block_length_index_max]):  # | 6) Iterate through col line (by its lenght)
+        # Increase world on demand
+        if len(world) < block_height_index_max:
+            new_world = generate_world(height_offset=block_height_index_max - 1)
+
+            world.extend(new_world)
+
+        for height_index, row in enumerate(
+                world[block_height_index:block_height_index_max]):  # | 5) Iterate through row line (by its tall)
+            for width_index, block_data in enumerate(
+                    row[block_length_index:block_length_index_max]):  # | 6) Iterate through col line (by its lenght)
 
                 cell_count += 1
                 block_img: pg.Surface = block_data['img']
                 block_rect: pg.Rect = block_data['rect']  # | 7) Move The camera accordingly
                 block_pos_updated = Vector2(block_rect.x - camera.x(), block_rect.y - camera.y())
-                # add it to the screen
+                # add it to the screen45
+
                 background.blit(block_img, block_pos_updated)
                 if block_data['collision']:
 
@@ -216,21 +240,29 @@ def run():
                     if diff_x < TILE_MAX_COLLISION and diff_y < TILE_MAX_COLLISION:
                         tales_with_collisions.append(block_rect)
 
+                    enemy_position = enemy.pos
+                    diff_x = abs(block_pos_updated.x - enemy_position.x)
+                    diff_y = abs(block_pos_updated.y - enemy_position.y)
+                    if diff_x < TILE_MAX_COLLISION and diff_y < TILE_MAX_COLLISION:
+                        tales_with_collisions.append(block_rect)
+
         return tales_with_collisions
 
-
-    world = generate_world()
+    world = generate_world()  # Initialize initial world
 
     while GAME_ON:
         # background.fill((10, 0, 25))  # re-paint
-        background.fill((200,200,200))  # re-paint
+        background.fill((200, 200, 200))  # re-paint
 
-        camera.calcualte_len_position(player.move_left)
+        camera.calculate_len_position(player.move_left)
 
         # Render world
         tales_with_collisions = render_world(world)
+        # tales_with_collisions += [player.rect, enemy.rect]
 
-        player.render(tales_with_collisions, background, camera)
+        player.render(tales_with_collisions + [enemy.rect], background, camera, enemy)
+        enemy.render(player.pos, tales_with_collisions, background, camera)
+
         # Events
         events()
 
@@ -239,7 +271,8 @@ def run():
         chunk_x = camera.x() / 64
         chunk_y = camera.y() / 64
         p_pos = player.rect
-        font_img = font.render(f'S={camera.x()},{camera.y()} C={chunk_x},{chunk_y} Player position -> {p_pos.topleft}', True, pg.Color("red"))
+        font_img = font.render(f'S={camera.x()},{camera.y()} C={chunk_x},{chunk_y} Player position -> {p_pos.topleft}',
+                               True, pg.Color("red"))
         background.blit(font_img, (350, 10))
 
         window.blit(background, (0, 0))

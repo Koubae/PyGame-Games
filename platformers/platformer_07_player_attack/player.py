@@ -5,21 +5,37 @@ import effects
 
 
 class Player:
-    DEFAULT_COLOR: pg.Color = pg.Color("red")
+    DEFAULT_COLOR: pg.Color = pg.Color("yellow")
+    SHAPES: list = ["rectangle", "circle"]
+    SHAPE: str = SHAPES[1]
+    BLEND_ADD: bool = False
 
     speed: int = 7
     gravity: float = .2
     air_resitance: float = .2
     gravity_max: int = 3
 
+    # Attack
+    attack_reach: int = 80
+    attack_strength: int = 15
+
     def __init__(self):
-        self.size: Vector2 = Vector2(64 / 4, 64 / 2)
+        self.size: Vector2 = Vector2(64 / 2, 64 / 2)
         self.pos: Vector2 = Vector2(120, 100)
         self.pos_next: Optional[Vector2] = None
         self.rect: pg.React = pg.Rect(self.pos, self.size)
 
-        self.img: pg.Surface = pg.Surface(self.size)
-        self.img.fill(self.DEFAULT_COLOR)
+        if self.SHAPE == 'circle':
+            self.img: pg.Surface = pg.Surface(self.size, flags=pg.SRCALPHA)
+            pg.draw.circle(self.img, self.DEFAULT_COLOR, self.img.get_rect().center, 64 / 4)
+        elif self.SHAPE == 'rectangle':
+            self.img: pg.Surface = pg.Surface(self.size)
+            self.img.fill(self.DEFAULT_COLOR)
+        else:
+            self.img: pg.Surface = pg.Surface(self.size)
+            self.img.fill(self.DEFAULT_COLOR)
+
+
 
         self.move_left: bool = False
         self.move_right: bool = False
@@ -30,7 +46,9 @@ class Player:
         self.gravity_applied: float = 0.00
         self.collisions: dict = {'top': False, 'right': False, 'bottom': False, 'left': False}
 
-    def render(self, tales: list, screen, camera):
+        self.attacking: bool = False
+
+    def render(self, tales: list, screen, camera, enemy):
         # jump
         self.jump_timer_decrease()
         # apply gravity to player
@@ -47,12 +65,19 @@ class Player:
         # .........
         # Sprint
         self.sprint_make(screen)
+        self.on_attack(enemy)
 
     def move(self, screen: pg.Surface, camera) -> None:
         """Moves entity"""
         self.player_new_pos = Vector2(self.rect.x - camera.x(), self.rect.y - camera.y())
         self.pos = self.player_new_pos
-        screen.blit(self.img, self.player_new_pos)
+        if self.BLEND_ADD:
+            screen.blit(self.img, self.player_new_pos, special_flags=pg.BLEND_ADD)
+        else:
+            screen.blit(self.img, self.player_new_pos)
+
+
+
 
     def move_calculate(self) -> Vector2:
         """Calculates the next Player movement"""
@@ -102,6 +127,10 @@ class Player:
                 self.gravity_applied = 0  # Cancel any jump or upper forces
                 self.rect.top = tile.bottom
 
+    # -----------------
+    # Abilities | Actions
+    # -----------------
+
     def sprint_make(self, screen: pg.Surface) -> None:
         """Make Entity sprint"""
         if not self.sprint:
@@ -109,3 +138,24 @@ class Player:
 
         direction = "left" if self.move_left else "right"
         effects.make_particle_trail(direction, screen, self.player_new_pos, self.size)
+
+
+    def on_attack(self, enemey):
+        if not self.attacking:
+            return
+        self.attacking = False # prevent the attack to go on multiple times
+
+        # get enemy position
+        enemy_rect: pg.Rect = enemey.rect
+
+        entity_center_pos = Vector2(enemy_rect.center)
+        self_center_pos = Vector2(self.rect.center)
+        diff_x = abs(self_center_pos.x - entity_center_pos.x)
+
+        if diff_x <= self.attack_reach:
+            enemey.attack_timer = self.attack_strength
+            enemey.img.fill(enemey.COLOR_ATTACK)
+
+
+
+
