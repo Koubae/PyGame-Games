@@ -13,7 +13,9 @@ class Player:
     player_size = Vector2(12, 64)
     hand_size = 5
     speed: int = 8
-    jump_force: float = 20
+    jump_force: float = 35
+    jump_rest: float = 4
+    jump_rest_current: int = 0.00
     weight: float = 5
 
     # sword
@@ -41,7 +43,7 @@ class Player:
         self.attacking: bool = False
         self.attack_reach: float = 0.00
 
-    def move(self, collision_entities: list):
+    def render(self, collision_entities: list):
         self.pos_new = Vector2(0, 0)
         self.collisions = {'top': False, 'right': False, 'bottom': False, 'left': False}
 
@@ -51,10 +53,7 @@ class Player:
         self.screen.blit(self.img, self.rect.topleft)
 
         # # draw sword
-        if self.attacking:
-            self.sword_tilt = 18
-        else:
-            self.sword_tilt = 0
+        self.on_attack()
 
         if self.move_left: # left hand
             sword_position_hand = self.rect.left + -(self.hand_size * 2)
@@ -85,8 +84,12 @@ class Player:
         self.collision_check(collision_entities)
 
         if self.jump:
-            # self.pos_new.y -= self.jump_force
-            self.gravity_applied =  -self.jump_force * 2
+            if self.jump_rest_current:
+                self.jump_rest_current -= 1
+            else:
+                self.gravity_applied = -self.jump_force * 2
+                self.jump = False
+
         self.rect.move_ip(0, self.pos_new.y)
         self.collision_check(collision_entities, "y")
 
@@ -119,6 +122,17 @@ class Player:
                 elif self.pos_new.y > 0:  # bottom
                     self.collisions["bottom"] = True
                     self.rect.bottom = entity.top
+
+    # -----------
+    # Player Actions
+    # -----------
+    def on_attack(self):
+        if not self.attacking:
+            self.sword_tilt = 0
+            return
+
+        self.sword_tilt = 18 # Bring the sword down
+
 
 
 class Enemy:
@@ -207,6 +221,7 @@ def run():
                     game_data["player"].move_right = True
                 elif event.key in (pg.K_UP, pg.K_SPACE):
                     game_data["player"].jump = True
+                    game_data["player"].jump_rest_current = game_data["player"].jump_rest
 
             if event.type == pg.KEYUP:
                 if event.key in (pg.K_LEFT, pg.K_a):
@@ -261,7 +276,7 @@ def run():
         if did_collide:
             collision_entities.append(game_data["enemy"].rect)
 
-        game_data["player"].move(collision_entities)
+        game_data["player"].render(collision_entities)
 
         # ==============================================================================
         # ..............................................................................
