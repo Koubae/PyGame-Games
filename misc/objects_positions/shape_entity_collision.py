@@ -3,8 +3,16 @@ import pygame
 
 pygame.init()
 window = pygame.display.set_mode((1280, 640))
-rect1 = pygame.Rect(*window.get_rect().center, 0, 0).inflate(75, 75)
-rect2 = pygame.Rect(0, 0, 85, 85)
+
+enemy = pygame.Rect(*window.get_rect().center, 0, 0).inflate(75, 75)
+enemy_coords = enemy.topleft
+
+sword_size = (10, 85)
+sword = pygame.Rect(0, 0, *sword_size)
+
+entities = {
+    f"{enemy_coords[0]}-{enemy_coords[1]}": enemy
+}
 
 run = True
 while run:
@@ -12,22 +20,24 @@ while run:
         if event.type == pygame.QUIT:
             run = False
 
-    rect2.center = pygame.mouse.get_pos()
+    sword.midbottom = pygame.mouse.get_pos()
 
-    coords1 = (640, 320)
-    coords2 = (641, 274)
-    collide = rect2.collidelist([pygame.Rect(coords1, (10, 10)), pygame.Rect(coords2, (10, 10))])
+    sword_coords = sword.topleft
+    sword_coords_key = f"{sword_coords[0]}-{sword_coords[1]}"
+
+
+    collide = sword.collidelist([enemy])
+
     color = (255, 255, 255)
     if collide != -1:
         color = (255, 0, 0)
         print(collide)
-        # print(rect2.topright)
-        # print(rect1.center)
+
 
 
     window.fill(0)
-    pygame.draw.rect(window, color, rect1)
-    pygame.draw.rect(window, (0, 255, 0), rect2, 6, 1)
+    pygame.draw.rect(window, color, enemy)
+    pygame.draw.rect(window, (0, 255, 0), sword)
     pygame.display.flip()
 
 pygame.quit()
