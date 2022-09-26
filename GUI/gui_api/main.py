@@ -116,6 +116,12 @@ GUI_STYLES = {
 
 
 class GuiPanel(pg.sprite.Sprite):
+    resizing_window_cursors = {'xl': pg.SYSTEM_CURSOR_SIZEWE,
+                                    'xr': pg.SYSTEM_CURSOR_SIZEWE,
+                                    'yt': pg.SYSTEM_CURSOR_SIZENS,
+                                    'yb': pg.SYSTEM_CURSOR_SIZENS,
+                                    'xy': pg.SYSTEM_CURSOR_SIZENWSE,
+                                    'yx': pg.SYSTEM_CURSOR_SIZENESW}
 
     def __init__(self, pos: Vector2, size: Vector2, app: App, screen: pg.Surface, parent: GuiPanel = None,
                  settings: dict = None,
