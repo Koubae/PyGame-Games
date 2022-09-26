@@ -410,8 +410,7 @@ class GuiButton(GuiPanel):
 
 
 def run():
-    # pygame init
-    pg.init()
+
     # pygame constants
     CLOCK = pg.time.Clock()
     FRAMES: int = 60
